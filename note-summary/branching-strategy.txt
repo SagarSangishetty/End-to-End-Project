@@ -1,0 +1,80 @@
+First, understand why branching strategy matters in a real project.
+Without a branching strategy, your repository becomes chaotic — people push directly to main, untested code goes to production, you can't roll back cleanly, and your pipeline triggers at the wrong time. A branching strategy is the foundation everything else sits on. Your pipeline, your environments, your deployments — all of them are driven by branch events.
+
+For a 2-environment setup (dev + production), here is the right strategy:
+main (production)
+  │
+  └── dev (development/staging)
+        │
+        └── feature/your-feature-name  (your working branch)
+Three branch types. Each has a specific purpose.
+
+Branch 1 — main
+This is your production branch. Sacred. Nobody pushes directly to this branch ever. Code only enters main through a Pull Request from dev, after it has been tested. When code merges to main — your production pipeline triggers automatically and deploys to your production environment on EKS.
+Branch 2 — dev
+This is your development/staging branch. All feature work merges here first. When code merges to dev — your dev pipeline triggers and deploys to your dev environment on EKS. This is where you test before promoting to production.
+Branch 3 — feature branches
+Every new piece of work gets its own branch. Created from dev, merged back to dev via Pull Request. Never directly to main.
+Naming convention:
+feature/add-login-api
+feature/setup-prometheus
+feature/add-dockerfile
+bugfix/fix-db-connection
+
+The flow of code in your project:
+You start work
+      ↓
+Create feature branch from dev
+git checkout dev
+git checkout -b feature/add-login-api
+      ↓
+Write code, commit locally
+git add .
+git commit -m "add login API endpoint"
+      ↓
+Push feature branch to GitHub
+git push origin feature/add-login-api
+      ↓
+Open Pull Request: feature → dev
+(you review your own PR, merge it)
+      ↓
+Merge to dev
+→ GitHub Actions triggers dev pipeline
+→ Deploys to dev EKS namespace
+→ You test it
+      ↓
+Everything looks good?
+Open Pull Request: dev → main
+(this is your production release decision)
+      ↓
+Merge to main
+→ GitHub Actions triggers prod pipeline
+→ Deploys to prod EKS namespace
+
+Why this matters for your interview story:
+When an interviewer asks "how did you manage your branching strategy?" you say:
+"We followed a trunk-based flow with two long-lived branches — dev and main — representing our two environments. Feature branches were created from dev, merged back via Pull Request, which triggered our dev pipeline and deployed to the dev namespace on EKS. Once validated, we promoted to main via another PR which triggered the production pipeline. No direct pushes to main were allowed — everything went through a Pull Request gate."
+That answer sounds like someone who has worked in a real team.
+
+Your GitHub Actions pipeline triggers will map like this:
+yaml# Dev pipeline — triggers on merge to dev
+on:
+  push:
+    branches:
+      - dev
+
+# Prod pipeline — triggers on merge to main
+on:
+  push:
+    branches:
+      - main
+Two separate workflow files. Two separate pipelines. Two separate EKS namespaces.
+
+One ground rule for your project:
+Even though you're working alone, follow this process strictly — create feature branches, open PRs, merge properly. Never push directly to dev or main. This builds the muscle memory for working in a real team and your Git history will look like a professional project, not a tutorial.
+
+Summary of your branching strategy:
+BranchPurposeWho pushesPipeline triggeredmainProductionNobody directly — PR onlyProduction deploydevDevelopmentNobody directly — PR onlyDev deployfeature/*Active workYouNone — only on PR merge
+
+This is your foundation. Everything else — your Terraform workspaces, your Kubernetes namespaces, your pipeline files, your EKS environments — will align to this structure.
+Ready to move to the next step — planning the application architecture and tech stack?
