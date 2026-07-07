@@ -1,0 +1,85 @@
+What each service does:
+
+User Service — register and fetch users
+
+POST /users          → create a user
+GET  /users/{id}     → get user by id
+GET  /health         → health check
+GET  /metrics        → prometheus metrics
+
+Product Service — manage products
+
+POST /products       → create a product
+GET  /products       → list all products
+GET  /products/{id}  → get product by id
+GET  /health         → health check
+GET  /metrics        → prometheus metrics
+
+Order Service — place and fetch orders
+
+POST /orders         → place an order (calls product service to validate)
+GET  /orders/{id}    → get order by id
+GET  /orders/user/{user_id} → all orders for a user
+GET  /health         → health check
+GET  /metrics        → prometheus metrics
+
+
+Frontend — Node.js Express
+
+GET  /               → home page (list products)
+GET  /users          → user registration page
+POST /users          → submit registration
+GET  /orders         → place order page
+POST /orders         → submit order
+
+One important thing before coding:
+Every service will have these 3 things built in from day one:
+
+X-Request-ID — read from incoming header, generate if missing, pass to all downstream calls, include in every log line
+Structured JSON logging — every log line is JSON with timestamp, service name, request ID, level, message
+Prometheus /metrics endpoint — request counter and latency histogram per endpoint
+
+These are not added later. They go in from the start — that's what production-grade means.
+
+
+
+-------------------------------------
+
+
+What was built in backed 
+
+That's user-service complete. Four files, clean separation of concerns.
+What's built in:
+
+Structured JSON logging on every request with request_id
+Prometheus metrics — request counter + latency histogram
+OpenTelemetry auto-instrumentation via FastAPIInstrumentor
+X-Request-ID read from header, generated if missing, returned in response
+DB connection from environment variable only
+Health endpoint ready for Kubernetes probes
+
+------------------------------------------------
+
+Order Service:
+
+One thing to notice before order-service:
+Order-service is different from the other two. It makes HTTP calls to both user-service and product-service to validate before placing an order. This is where the X-Request-ID becomes critical — the same ID must be passed in the header of those internal service calls so Jaeger shows one connected trace across all three services.
+That's the most interesting piece of this whole application from a DevOps perspective — tracing a single user action across three microservices.
+
+-----------------------------------------
+In requirnment.txt
+
+Note one addition: opentelemetry-instrumentation-httpx — this auto-instruments the HTTP calls order-service makes to other services, so those calls appear as child spans in Jaeger under the same trace.
+-------------------------------------------
+
+What makes order-service different and interview-worthy:
+HTTPXClientInstrumentor is the key piece. Without it you'd have separate disconnected traces — one in order-service, separate ones in user-service and product-service. With it, Jaeger shows a single waterfall trace:
+
+order-service POST /orders          ──────────────────── 245ms
+  user-service GET /users/1            ──── 32ms
+  product-service GET /products/1          ──── 28ms
+  product-service PATCH /stock                 ── 18ms
+
+That single view tells you exactly where latency is coming from across all three services. That's the interview story.
+Also notice ORDER_ERRORS counter — this is the specific metric Grafana will alert on. When you intentionally break the DB connection during your demo, this counter spikes and the alert fires. Clean, demonstrable, memorable.
+Ready for the frontend?

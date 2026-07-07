@@ -1,0 +1,232 @@
+================================================================
+        ECOMMERCE LITE — PROJECT NOTES
+================================================================
+
+GITHUB REPO
+-----------
+URL  : https://github.com/SagarSangishetty/ecommerce-lite.git
+Clone: git clone https://github.com/SagarSangishetty/ecommerce-lite.git
+
+----------------------------------------------------------------
+BRANCHING STRATEGY
+----------------------------------------------------------------
+
+main   → Production  (never push directly — PR only)
+dev    → Development (never push directly — PR only)
+feature/* → Active work (always created from dev)
+
+Daily workflow:
+  git checkout dev
+  git pull origin dev
+  git checkout -b feature/your-feature-name
+  --- do your work ---
+  git add .
+  git commit -m "meaningful message"
+  git push origin feature/your-feature-name
+  --- open PR on GitHub: feature → dev ---
+
+----------------------------------------------------------------
+APPLICATION ARCHITECTURE
+----------------------------------------------------------------
+
+Frontend  : Node.js + Express          (Port 3000)
+Services  : Python FastAPI
+            - user-service             (Port 8001)
+            - product-service          (Port 8002)
+            - order-service            (Port 8003)
+Database  : PostgreSQL (shared, 3 schemas)
+
+Request flow:
+  Browser → Frontend → Services → PostgreSQL
+
+Trace correlation:
+  Frontend generates X-Request-ID (UUID)
+  Passes to every service as HTTP header
+  Every service logs it + includes in trace
+  Search by X-Request-ID in Jaeger = full journey
+
+----------------------------------------------------------------
+OBSERVABILITY STACK
+----------------------------------------------------------------
+
+Metrics  : Prometheus (scrapes /metrics from each service)
+           Grafana    (dashboards + alerts)
+Logging  : Fluent Bit (collects pod logs)
+           Elasticsearch (stores logs)
+           Kibana     (search and visualise logs)
+Tracing  : OpenTelemetry Collector (receives traces)
+           Jaeger     (visualise traces)
+
+Alert scenario:
+  Order service error rate > 5 errors/min → Grafana fires alert
+
+----------------------------------------------------------------
+REPOSITORY STRUCTURE
+----------------------------------------------------------------
+
+ecommerce-lite/
+│
+├── .github/
+│   └── workflows/
+│       ├── ci-dev.yml          # triggers on push to dev
+│       └── ci-prod.yml         # triggers on push to main
+│
+├── frontend/                   # Node.js + Express
+│   ├── src/
+│   │   ├── app.js
+│   │   └── views/
+│   ├── Dockerfile
+│   └── package.json
+│
+├── services/
+│   ├── user-service/           # Python FastAPI (port 8001)
+│   │   ├── app/
+│   │   │   ├── main.py
+│   │   │   ├── routes.py
+│   │   │   └── database.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   ├── product-service/        # Python FastAPI (port 8002)
+│   │   ├── app/
+│   │   │   ├── main.py
+│   │   │   ├── routes.py
+│   │   │   └── database.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   └── order-service/          # Python FastAPI (port 8003)
+│       ├── app/
+│       │   ├── main.py
+│       │   ├── routes.py
+│       │   └── database.py
+│       ├── Dockerfile
+│       └── requirements.txt
+│
+├── k8s/
+│   ├── namespaces/
+│   │   ├── dev-namespace.yaml
+│   │   └── prod-namespace.yaml
+│   ├── frontend/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   ├── user-service/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   ├── product-service/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   ├── order-service/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   ├── database/
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   └── pvc.yaml
+│   └── ingress/
+│       └── ingress.yaml
+│
+├── observability/
+│   ├── prometheus/
+│   │   ├── values.yaml
+│   │   └── alert-rules.yaml
+│   ├── grafana/
+│   │   └── dashboards/
+│   ├── efk/
+│   │   ├── elasticsearch.yaml
+│   │   ├── fluent-bit.yaml
+│   │   └── kibana.yaml
+│   └── tracing/
+│       ├── otel-collector.yaml
+│       └── jaeger.yaml
+│
+├── terraform/
+│   ├── modules/
+│   │   ├── eks/
+│   │   └── vpc/
+│   ├── environments/
+│   │   ├── dev/
+│   │   │   ├── main.tf
+│   │   │   └── terraform.tfvars
+│   │   └── prod/
+│   │       ├── main.tf
+│   │       └── terraform.tfvars
+│   └── backend.tf
+│
+├── scripts/
+│   └── setup.sh
+│
+├── .gitignore
+└── README.md
+
+----------------------------------------------------------------
+ENVIRONMENTS (EKS Namespaces)
+----------------------------------------------------------------
+
+ecommerce-dev   → deploys on merge to dev branch
+ecommerce-prod  → deploys on merge to main branch
+
+----------------------------------------------------------------
+BUILD ORDER (follow this sequence)
+----------------------------------------------------------------
+
+Step 1  ✅ GitHub repo + folder structure + branching
+Step 2  ⬜ Write application code (CRUD — simple)
+Step 3  ⬜ Dockerise all 4 services
+Step 4  ⬜ Test locally with docker-compose
+Step 5  ⬜ Write Kubernetes manifests
+Step 6  ⬜ Deploy to EKS manually (verify first)
+Step 7  ⬜ Add CI/CD pipelines (GitHub Actions)
+Step 8  ⬜ Add observability stack
+Step 9  ⬜ Configure Grafana alerts
+Step 10 ⬜ End to end test — trace one full request
+
+----------------------------------------------------------------
+PORTS REFERENCE
+----------------------------------------------------------------
+
+frontend        : 3000
+user-service    : 8001
+product-service : 8002
+order-service   : 8003
+postgresql      : 5432
+prometheus      : 9090
+grafana         : 3001
+elasticsearch   : 9200
+kibana          : 5601
+jaeger UI       : 16686
+otel-collector  : 4317 (grpc) / 4318 (http)
+
+----------------------------------------------------------------
+KEY INTERVIEW TALKING POINTS
+----------------------------------------------------------------
+
+1. Branching strategy
+   "Feature branches from dev, PR to dev triggers dev pipeline,
+   PR from dev to main triggers prod pipeline. No direct pushes
+   to protected branches."
+
+2. Trace correlation
+   "Every request gets an X-Request-ID generated at the frontend.
+   It flows through every service as an HTTP header, appears in
+   every log line, and links all spans in Jaeger. One ID traces
+   the full journey."
+
+3. Alert scenario
+   "Grafana alert fires when order service error rate exceeds
+   5 errors per minute. I tested this by intentionally breaking
+   the DB connection and confirmed the alert fired within 60
+   seconds. Traced the exact failure point using the request ID
+   in Jaeger."
+
+4. Environment isolation
+   "Two namespaces on the same EKS cluster — ecommerce-dev and
+   ecommerce-prod. Separate pipelines, separate secrets,
+   separate deployments. Promoted from dev to prod via PR."
+
+5. No hardcoded credentials
+   "Database passwords managed via External Secrets Operator
+   pulling from AWS Secrets Manager. GitHub Actions uses OIDC —
+   no static AWS keys stored anywhere."
+
+================================================================

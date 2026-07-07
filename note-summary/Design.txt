@@ -1,0 +1,179 @@
+Application: E-commerce Lite
+┌─────────────────────────────────────────────────────────┐
+│                    USER BROWSER                         │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│              FRONTEND (Node.js + Express)                │
+│         Renders pages, calls backend services           │
+│              Port: 3000                                 │
+└─────────────────────┬───────────────────────────────────┘
+                      │ HTTP calls with X-Request-ID header
+                      ▼
+┌─────────────────────────────────────────────────────────┐
+│                  3 MICROSERVICES (Python FastAPI)        │
+│                                                         │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │ User Service│  │Product Service│  │ Order Service │  │
+│  │  Port: 8001 │  │  Port: 8002  │  │  Port: 8003   │  │
+│  └──────┬──────┘  └──────┬───────┘  └───────┬───────┘  │
+│         │                │                   │          │
+└─────────┼────────────────┼───────────────────┼──────────┘
+          │                │                   │
+          ▼                ▼                   ▼
+┌─────────────────────────────────────────────────────────┐
+│                  PostgreSQL Database                     │
+│     users table │ products table │ orders table         │
+└─────────────────────────────────────────────────────────┘
+
+Observability Stack — how it connects:
+Every HTTP request gets ONE X-Request-ID (trace ID)
+Frontend generates it → passes to every service → 
+logged in every service → visible in Jaeger as one trace
+
+┌─────────────────────────────────────────────────────────┐
+│                  OBSERVABILITY                          │
+│                                                         │
+│  Prometheus  ←── /metrics endpoint on each service     │
+│      ↓                                                  │
+│  Grafana     ←── dashboards + ALERT on high error rate │
+│                                                         │
+│  Fluent Bit  ←── collects logs from all pods           │
+│      ↓                                                  │
+│  Elasticsearch + Kibana ←── log storage + search       │
+│                                                         │
+│  OpenTelemetry Collector ←── receives traces           │
+│      ↓                                                  │
+│  Jaeger      ←── trace visualisation                   │
+│  (search by X-Request-ID → see full journey)           │
+└─────────────────────────────────────────────────────────┘
+
+The alert scenario:
+When Order Service has more than 5 errors in 1 minute → Grafana fires an alert. This is your interview story: "We had an alert configured on order service error rate. During testing I intentionally broke the DB connection and the alert fired within 60 seconds. I traced the request ID in Jaeger and found exactly which step failed."
+
+Repository Structure:
+ecommerce-lite/
+│
+├── .github/
+│   └── workflows/
+│       ├── ci-dev.yml          # triggers on push to dev
+│       └── ci-prod.yml         # triggers on push to main
+│
+├── frontend/                   # Node.js + Express
+│   ├── src/
+│   │   ├── app.js
+│   │   └── views/
+│   ├── Dockerfile
+│   └── package.json
+│
+├── services/
+│   ├── user-service/           # Python FastAPI
+│   │   ├── app/
+│   │   │   ├── main.py
+│   │   │   ├── routes.py
+│   │   │   └── database.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   ├── product-service/        # Python FastAPI
+│   │   ├── app/
+│   │   │   ├── main.py
+│   │   │   ├── routes.py
+│   │   │   └── database.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   └── order-service/          # Python FastAPI
+│       ├── app/
+│       │   ├── main.py
+│       │   ├── routes.py
+│       │   └── database.py
+│       ├── Dockerfile
+│       └── requirements.txt
+│
+├── k8s/
+│   ├── namespaces/
+│   │   ├── dev-namespace.yaml
+│   │   └── prod-namespace.yaml
+│   │
+│   ├── frontend/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   │
+│   ├── user-service/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   │
+│   ├── product-service/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   │
+│   ├── order-service/
+│   │   ├── deployment.yaml
+│   │   └── service.yaml
+│   │
+│   ├── database/
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   └── pvc.yaml
+│   │
+│   └── ingress/
+│       └── ingress.yaml        # ALB path-based routing
+│
+├── observability/
+│   ├── prometheus/
+│   │   ├── values.yaml
+│   │   └── alert-rules.yaml    # high error rate alert
+│   │
+│   ├── grafana/
+│   │   └── dashboards/
+│   │
+│   ├── efk/
+│   │   ├── elasticsearch.yaml
+│   │   ├── fluent-bit.yaml
+│   │   └── kibana.yaml
+│   │
+│   └── tracing/
+│       ├── otel-collector.yaml
+│       └── jaeger.yaml
+│
+├── terraform/
+│   ├── modules/
+│   │   ├── eks/
+│   │   └── vpc/
+│   │
+│   ├── environments/
+│   │   ├── dev/
+│   │   │   ├── main.tf
+│   │   │   └── terraform.tfvars
+│   │   └── prod/
+│   │       ├── main.tf
+│   │       └── terraform.tfvars
+│   │
+│   └── backend.tf
+│
+├── scripts/
+│   └── setup.sh                # one-time cluster setup script
+│
+├── .gitignore
+└── README.md
+
+Key design decisions and why:
+X-Request-ID as the correlation ID — Frontend generates a UUID on every request. Passes it as an HTTP header to every service call. Every service logs it, includes it in traces, and passes it downstream. One request ID traces the full journey: frontend → user service → order service → database. In Jaeger you search by this ID and see the entire chain.
+One database, three schemas — For simplicity and cost in a learning environment. In real production each microservice would have its own database. You mention this in interviews: "For this project I used a shared PostgreSQL with separate schemas per service. In a real production environment each service would own its own database to maintain true independence." Shows maturity.
+Two namespaces on EKS — ecommerce-dev and ecommerce-prod. Same cluster, isolated environments. Same pattern you already used in your observability project.
+Terraform for infrastructure — VPC and EKS provisioned via your existing modules. Not manual clicking in console.
+
+Build order — what we do first to last:
+Step 1 → Create GitHub repo, branching strategy, folder structure
+Step 2 → Write application code (simple CRUD — 1 day max)
+Step 3 → Dockerise all 4 services
+Step 4 → Test locally with docker-compose
+Step 5 → Write Kubernetes manifests
+Step 6 → Deploy to EKS manually first (confirm it works)
+Step 7 → Add CI/CD pipelines (GitHub Actions)
+Step 8 → Add observability stack
+Step 9 → Configure alerts
+Step 10 → Test end to end — trace one request through everything
+Each step is completable independently. We don't move to next until current step is solid
