@@ -1,0 +1,61 @@
+docker-compose up --build
+
+Wait for all services to show healthy. You'll see logs from all services in structured JSON.
+
+
+--------------------
+
+Testing 
+
+Once running — test in this exact order:
+1. Check all services are healthy:
+docker-compose ps
+
+All should show healthy.
+2. Create a product (via API — no UI for this):
+curl -X POST http://localhost:8002/products \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: test-request-001" \
+  -d '{
+    "name": "Mobile",
+    "description": "High performance mobile",
+    "price": 75000,
+    "stock": 10
+  }'
+
+3. Open browser → http://localhost:3000
+You should see the Laptop listed on the home page.
+
+4. Register a user:
+Go to http://localhost:3000/register
+Fill in name and email, submit.
+Note the user ID returned — you'll need it for the order.
+
+5. Check the user was created:
+curl http://localhost:8001/users/1 \
+  -H "X-Request-ID: test-request-002"
+
+6. Place an order:
+Go to http://localhost:3000/order
+Enter User ID 1, select Laptop, quantity 1, submit.
+Note the Request ID shown at the bottom of the page.
+
+7. Verify stock was deducted:
+curl http://localhost:8002/products/1 \
+  -H "X-Request-ID: test-request-003"
+Stock should now show 9.
+
+8. Check metrics are working:
+curl http://localhost:8001/metrics
+curl http://localhost:8002/metrics
+curl http://localhost:8003/metrics
+You should see Prometheus format output with your custom counters and histograms.
+
+What to look for in the logs:
+Every log line should be JSON and contain request_id. When you place an order, watch the terminal — you should see the same request ID appearing in order-service logs AND when it calls user-service and product-service. That's your trace correlation working locally before Jaeger is even set up.
+json{"timestamp": "...", "level": "INFO", "service": "order-service", "event": "create_order_request", "request_id": "abc-123", ...}
+{"timestamp": "...", "level": "INFO", "service": "user-service", "event": "get_user_request", "request_id": "abc-123", ...}
+{"timestamp": "...", "level": "INFO", "service": "product-service", "event": "get_product_request", "request_id": "abc-123", ...}
+Same request_id across three different service logs. That's the proof the correlation is working.
+
+Run it and share what you see. If any service fails to start, share the error and we'll fix it before moving to Kubernetes manifests.

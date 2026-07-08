@@ -83,3 +83,22 @@ order-service POST /orders          ──────────────�
 That single view tells you exactly where latency is coming from across all three services. That's the interview story.
 Also notice ORDER_ERRORS counter — this is the specific metric Grafana will alert on. When you intentionally break the DB connection during your demo, this counter spikes and the alert fires. Clean, demonstrable, memorable.
 Ready for the frontend?
+
+----------------------------------------------------
+
+Frontend
+
+Notice the Request ID on every page.
+Every HTML page renders Request ID: <%= request_id %> at the bottom. This is deliberate — in your interview demo you open the browser, place an order, copy that request ID from the page, paste it into Jaeger, and see the full trace across all three services. That's a live demonstration of end-to-end observability that most candidates cannot show
+
+All application code is now complete:
+
+✅ user-service    — register and fetch users
+✅ product-service — product catalogue and stock management
+✅ order-service   — order placement with inter-service calls
+✅ frontend        — Node.js with EJS views
+
+✅ user-service    — register and fetch users
+✅ product-service — product catalogue and stock management
+✅ order-service   — order placement with inter-service calls
+✅ frontend        — Node.js with EJS views

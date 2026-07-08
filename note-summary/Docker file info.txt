@@ -1,0 +1,14 @@
+What every Dockerfile has and why — interview talking points:
+Multi-stage build — 
+
+Stage 1 installs dependencies,
+Stage 2 is the clean runtime image. Final image contains zero build tools or pip/npm cache. Reduces image size significantly and reduces attack surface.
+
+Non-root user — appuser created in every image. Running as root in a container is a security risk — if the container is compromised, the attacker has root inside the container. Non-root limits the blast radius.
+
+Layer caching — requirements.txt and package.json are copied before application code. Docker caches layers. If your code changes but dependencies don't, Docker reuses the cached dependency layer. Builds are significantly faster in CI.
+
+HEALTHCHECK — Docker marks the container healthy or unhealthy based on this. Kubernetes uses its own probes (which we'll configure in the manifest), but having a Docker-level health check is good practice and useful for local testing.
+
+--no-cache-dir on pip — pip caches downloaded packages by default. In a Docker build you never reuse that cache so it just wastes space. This flag disables it.
+npm ci instead of npm install — ci is stricter — it uses package-lock.json exactly, never modifies it, and is faster. Always use npm ci in CI/CD and Docker builds.
