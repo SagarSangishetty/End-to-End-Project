@@ -1,0 +1,1 @@
+We have configured the secret directly on the cluster which cicd we will created a secret manager and sync the secret.

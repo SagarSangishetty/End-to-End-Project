@@ -1,0 +1,27 @@
+Issue:
+Unable to connect to the PostgreSQL RDS database from an application pod running inside the EKS cluster.
+
+Troubleshooting Steps:
+1. Created a temporary PostgreSQL client pod inside the EKS cluster.
+2. Attempted to connect to the RDS PostgreSQL instance using the connection string.
+3. Observed that the connection was hanging with no response.
+4. Verified DNS resolution using:
+   getent hosts <rds-endpoint>
+   The RDS endpoint was resolving successfully to a private IP address.
+5. Since DNS resolution was working, concluded that the issue was related to network connectivity rather than DNS.
+6. Reviewed the RDS Security Group configuration.
+7. Found that the inbound rule of the RDS Security Group was incorrectly configured and was not allowing traffic from the EKS worker node Security Group.
+8. Updated the RDS Security Group inbound rule to allow PostgreSQL (TCP 5432) access from the EKS node Security Group.
+9. Retested the connection from the temporary PostgreSQL client pod.
+10. The connection was established successfully, confirming the issue was resolved.
+
+Root Cause:
+The RDS Security Group inbound rule was misconfigured. It was not allowing traffic from the EKS worker node Security Group.
+
+Resolution:
+Updated the RDS Security Group to allow inbound TCP port 5432 from the EKS node Security Group.
+
+Learning:
+- If the RDS endpoint resolves correctly but the database connection hangs, verify the RDS Security Group configuration.
+- Ensure the RDS Security Group allows PostgreSQL (TCP 5432) traffic from the EKS node Security Group (or Pod Security Group if using Security Groups for Pods).
+- A hanging connection usually indicates a network or security configuration issue, whereas an authentication error indicates that network connectivity is working and only the credentials need to be verified.

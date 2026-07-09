@@ -1,0 +1,64 @@
+Step 1 — Get your RDS endpoint:
+Go to AWS Console → RDS → Databases → your instance → copy the endpoint.
+Format will look like:
+ecommerce-db.xxxxxxxxx.ap-south-1.rds.amazonaws.com
+
+Step 2 — Create the namespace first:
+bashkubectl apply -f k8s/namespaces/dev-namespace.yaml
+kubectl get namespace ecommerce-dev
+
+Step 3 — Create secrets in the cluster:
+bash# Replace the values with your actual RDS details
+kubectl create secret generic app-secret \
+  --from-literal=DATABASE_URL=postgresql://ecommerce:YOUR_PASSWORD@YOUR_RDS_ENDPOINT:5432/ecommerce \
+  --namespace=ecommerce-dev
+Verify it was created:
+bashkubectl get secret app-secret -n ecommerce-dev
+
+Step 4 — Verify RDS connectivity from your machine first:
+Before deploying to EKS, confirm the RDS endpoint and credentials are correct:
+bashpsql postgresql://ecommerce:YOUR_PASSWORD@YOUR_RDS_ENDPOINT:5432/ecommerce
+If psql is not installed:
+bashdocker run --rm -it postgres:15-alpine \
+  psql postgresql://ecommerce:YOUR_PASSWORD@YOUR_RDS_ENDPOINT:5432/ecommerce
+You should see a postgres prompt. Type \q to exit.
+
+Step 5 — Apply ConfigMap:
+bashkubectl apply -f k8s/configmap.yaml
+kubectl get configmap app-config -n ecommerce-dev
+
+
+-------------------------------------
+
+
+
+Now build and push images to ECR.
+First create ECR repositories for all 4 services:
+bash# Create all 4 repos
+aws ecr create-repository --repository-name ecommerce-lite/user-service --region us-east-1
+aws ecr create-repository --repository-name ecommerce-lite/product-service --region us-east-1
+aws ecr create-repository --repository-name ecommerce-lite/order-service --region us-east-1
+aws ecr create-repository --repository-name ecommerce-lite/frontend --region us-east-1
+Then login to ECR:
+bashaws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin \
+  YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com
+Then build and push all 4 images:
+bash# Set your ECR registry
+ECR="YOUR_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com"
+
+# User service
+docker build -t $ECR/ecommerce-lite/user-service:latest ./services/user-service
+docker push $ECR/ecommerce-lite/user-service:latest
+
+# Product service
+docker build -t $ECR/ecommerce-lite/product-service:latest ./services/product-service
+docker push $ECR/ecommerce-lite/product-service:latest
+
+# Order service
+docker build -t $ECR/ecommerce-lite/order-service:latest ./services/order-service
+docker push $ECR/ecommerce-lite/order-service:latest
+
+# Frontend
+docker build -t $ECR/ecommerce-lite/frontend:latest ./frontend
+docker push $ECR/ecommerce-lite/frontend:latest
