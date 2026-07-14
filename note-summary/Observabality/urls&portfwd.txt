@@ -1,0 +1,72 @@
+📊 Grafana
+kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
+
+Open: http://localhost:3000
+
+📈 Prometheus
+kubectl port-forward -n observability svc/kube-prometheus-stack-prometheus 9090:9090
+
+Open: http://localhost:9090
+
+🚨 Alertmanager
+kubectl port-forward -n observability svc/kube-prometheus-stack-alertmanager 9093:9093
+
+Open:http://localhost:9093
+
+📜 Kibana
+kubectl port-forward -n observability svc/kibana-kibana 5601:5601
+
+Open:http://localhost:5601
+
+Login:
+Username: elastic
+Password: (Retrieve it with the command below if you don't have it handy.)
+kubectl get secret elasticsearch-master-credentials \
+  -n observability \
+  -o jsonpath="{.data.password}" | base64 -d && echo
+
+🔍 Jaeger
+kubectl port-forward -n observability svc/jaeger 16686:16686
+
+Open:http://localhost:16686
+
+📝 Fluent Bit Metrics
+kubectl port-forward -n observability svc/fluent-bit 2020:2020
+
+Open:http://localhost:2020
+
+Useful endpoints:
+
+http://localhost:2020/
+http://localhost:2020/api/v1/metrics/prometheus
+
+📡 OpenTelemetry Collector
+OTLP gRPC
+kubectl port-forward -n observability svc/otel-collector 4317:4317
+OTLP HTTP
+kubectl port-forward -n observability svc/otel-collector 4318:4318
+
+Prometheus Metrics
+kubectl port-forward -n observability svc/otel-collector 8888:8888
+
+Open:http://localhost:8888/metrics
+
+🔎 Elasticsearch
+kubectl port-forward -n observability svc/elasticsearch-master 9200:9200
+
+Test it:
+
+curl -k -u elastic:<PASSWORD> https://localhost:9200
+
+--------------------------------------------------------------------------------------------------
+
+| Component     | URL                                                            |
+| ------------- | -------------------------------------------------------------- |
+| Grafana       | [http://localhost:3000](http://localhost:3000)                 |
+| Prometheus    | [http://localhost:9090](http://localhost:9090)                 |
+| Alertmanager  | [http://localhost:9093](http://localhost:9093)                 |
+| Kibana        | [http://localhost:5601](http://localhost:5601)                 |
+| Jaeger        | [http://localhost:16686](http://localhost:16686)               |
+| Fluent Bit    | [http://localhost:2020](http://localhost:2020)                 |
+| OTel Metrics  | [http://localhost:8888/metrics](http://localhost:8888/metrics) |
+| Elasticsearch | [https://localhost:9200](https://localhost:9200)               |

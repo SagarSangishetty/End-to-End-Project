@@ -1,0 +1,9 @@
+The data flow:
+
+Fluent Bit runs as a DaemonSet — one pod per node, guaranteed (not just "one replica somewhere"). Each pod tails container log files from /var/log/containers on its own node's filesystem, so no log from any pod on that node is missed regardless of scheduling.
+It parses/enriches those logs (adding K8s metadata — pod name, namespace, labels), then ships them via its OUTPUT config to Elasticsearch over HTTP (port 9200), which is where your Host/Port config comes in.
+Elasticsearch stores and indexes the logs — this is the actual database/search engine, indexed by the Logstash_Prefix you set (ecommerce-lite), typically rolling into daily indices like ecommerce-lite-2026.07.14.
+Kibana doesn't store anything itself — it's purely a query/visualization layer that talks to Elasticsearch's API (elasticsearchHosts pointing at elasticsearch-master:9200) to let you search, filter, and build dashboards over what's already indexed there.
+
+So the interconnection is genuinely just: Fluent Bit → writes to → Elasticsearch ← reads from ← Kibana. Elasticsearch is the hub; Fluent Bit and Kibana never talk to each other directly.
+One thing worth internalizing for interviews since it's a common follow-up question: this is why DaemonSet is the correct workload type for a log shipper (vs. a Deployment) — you need exactly one collector per node to guarantee complete log coverage as pods get scheduled/rescheduled across nodes, not a floating N replicas that might miss a node entirely.

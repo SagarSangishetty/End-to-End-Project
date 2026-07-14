@@ -1,0 +1,22 @@
+==========================================================================================
+Production Best Practices Implemented
+==========================================================================================
+
+| What We Did                                   | Why It's Production Standard                              |
+|-----------------------------------------------|-----------------------------------------------------------|
+| Branching Strategy (feature → dev → main)     | Prevents direct pushes to production and enables code reviews. |
+| Multi-stage Dockerfiles                       | Produces smaller images and removes build tools from runtime. |
+| Non-root User in Containers                   | Improves container security by following least privilege. |
+| ConfigMap for Non-sensitive Configuration     | Separates configuration from application code.            |
+| Kubernetes Secrets for DATABASE_URL           | Keeps sensitive credentials out of code and manifests.    |
+| PLACEHOLDER_IMAGE in Kubernetes Manifests     | Enables dynamic image replacement during CI/CD.           |
+| Amazon RDS instead of StatefulSet             | Uses a managed database suitable for production workloads. |
+| Readiness, Liveness & Startup Probes          | Allows Kubernetes to manage application health correctly. |
+| Resource Requests and Limits                  | Prevents resource contention and ensures predictable scheduling. |
+| ClusterIP for Backend Services                | Keeps internal services private within the cluster.       |
+| ALB Ingress for Frontend                      | Provides a single public entry point to the application.  |
+| X-Request-ID Correlation                      | Enables request tracing across multiple microservices.    |
+| Structured JSON Logging                       | Makes logs machine-readable for Fluent Bit/ELK processing.|
+| Prometheus Metrics on Every Service           | Provides monitoring and observability from day one.       |
+
+==========================================================================================

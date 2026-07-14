@@ -1,0 +1,9 @@
+Issue:
+App connected to RDS successfully (network/SG/auth all fine) but failed with database "ecommerce" does not exist.
+Root Cause:
+RDS Terraform was provisioned with db_name = "postgres", so only the default maintenance database existed — the DATABASE_URL pointed to /ecommerce, which was never created.
+Resolution:
+Manually connected to the default postgres database and ran CREATE DATABASE ecommerce;. Updated Terraform's db_name variable to ecommerce so future environments provision correctly from creation (note: changing db_name doesn't retroactively affect an existing instance).
+Learning:
+
+db_name in RDS Terraform only applies at initial instance creation — a mismatch here won't surface until the app actually tries to connect, and the error (database does not exist) is actually a good sign — it confirms network, SG, and credentials are all already correct.

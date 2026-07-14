@@ -1,0 +1,66 @@
+Helm stack should install and manage:
+
+✅ Prometheus
+✅ Grafana
+✅ Alertmanager
+✅ Prometheus Operator
+✅ kube-state-metrics
+✅ Node Exporter
+✅ CRDs (ServiceMonitor, PrometheusRule, PodMonitor, etc.)
+✅ Persistent Volumes
+✅ External Secrets (Grafana admin credentials)
+✅ StorageClass
+✅ Namespace (observability)
+
+
+Application Kubernetes Stack (ecommerce-dev)
+
+
+├── servicemonitor.yaml
+└── prometheusrule.yaml
+
+
+--------------------------------------------------
+
+How Servicemonitor communicate despite being in separate namespace.(This only tell Prometheus how to communicate we need to define which namespace to watch)
+--These only control how Prometheus selects ServiceMonitor and PrometheusRule resources. They do not tell Prometheus which namespaces to watch
+
+Option 1 (Recommended)
+
+Disable the Helm-only selectors (which you've already done) and allow Prometheus to discover all monitors/rules in selected namespaces.
+
+
+serviceMonitorSelectorNilUsesHelmValues: false
+ruleSelectorNilUsesHelmValues: false
+
+Prometheus will discover all ServiceMonitor and PrometheusRule resources that match its namespace selectors. It is not necessary to add the Helm release label (release: kube-prometheus-stack) just for discovery.
+
+Option 2
+
+Keep Helm's default selectors and label every ServiceMonitor and PrometheusRule with:
+
+labels:
+  release: kube-prometheus-stack
+
+This is also valid but requires you to remember the label on every monitoring resource.
+
+
+-----------------------------------------------------------
+
+To tell Prometheus which namepace to watch we need below configuration in Prometheus.
+
+
+prometheus:
+  prometheusSpec:
+
+    serviceMonitorNamespaceSelector:
+      matchNames:
+        - ecommerce-dev
+
+    ruleNamespaceSelector:
+      matchNames:
+        - ecommerce-dev
+
+    podMonitorNamespaceSelector:
+      matchNames:
+        - ecommerce-dev

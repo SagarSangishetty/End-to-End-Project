@@ -1,0 +1,19 @@
+Issue 2: kubectl / CI Authentication Failure to EKS
+Issue:
+GitHub Actions CI pipeline failed on kubectl apply with the server has asked for the client to provide credentials, despite AWS OIDC authentication succeeding and aws eks update-kubeconfig running without error.
+Troubleshooting Steps:
+
+Confirmed AWS credentials were valid — OIDC role assumption succeeded, kubeconfig was written.
+Checked cluster authentication mode via aws eks list-access-entries — returned an error stating the cluster wasn't configured for API-based access entries.
+Concluded the cluster used the legacy aws-auth ConfigMap model.
+Inspected aws-auth in kube-system — confirmed the CI IAM role wasn't mapped, so the EKS API server couldn't resolve the identity even though AWS-side auth succeeded.
+
+Root Cause:
+AWS IAM authentication and Kubernetes RBAC authorization are separate layers on EKS. A valid, successfully-assumed IAM role still needs an explicit mapping in aws-auth (or Access Entries) before the Kubernetes API server will recognize it as any valid identity.
+Resolution:
+Added the CI role to aws-auth's mapRoles with system:masters (to unblock; scoped down later). Applied manually via kubectl edit short-term, with a Terraform-managed kubernetes_config_map_v1_data resource planned to make the mapping durable and reproducible.
+Learning:
+
+"Server has asked for client to provide credentials" on kubectl = identity not recognized by the cluster, not a credentials/expiry problem — check aws-auth/Access Entries before re-checking AWS-side auth.
+IAM role trust (who can assume the role) and Kubernetes RBAC mapping (what the role can do inside the cluster) are two independent things that both need to be correct.
+Manually-edited aws-auth ConfigMaps aren't tracked by Terraform unless explicitly managed — a gap worth closing before relying on it long-term, since it can silently drift or get wiped by unrelated changes.

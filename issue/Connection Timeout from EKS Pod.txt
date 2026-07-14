@@ -1,0 +1,26 @@
+Issue 1: RDS Connection Timeout from EKS Pod
+Issue:
+Application pod in EKS could not connect to PostgreSQL RDS — connection attempts hung and eventually timed out (not "connection refused").
+Troubleshooting Steps:
+
+Checked pod logs — startup hung after one log line, no DB connection error surfaced (app had no connection timeout set).
+Spun up a temporary postgres:15 client pod in the same namespace to isolate app code vs. infra.
+Attempted direct psql connection — hung, then failed with Connection timed out (not "refused" — indicated a dropped packet, not a rejection).
+Verified RDS was available and in the same VPC as the EKS cluster.
+Confirmed EKS node subnets and RDS subnet group used identical subnets.
+Checked NACLs on those subnets — default allow-all, ruled out.
+Reviewed the RDS security group inbound rule — correctly configured to allow TCP 5432 from the intended EKS node security group.
+Suspected the SG might not actually be attached to the running node — checked the EC2 instance directly via describe-instances.
+Found the actual root cause: the node group was using EKS's auto-generated cluster security group, not the custom node SG defined in Terraform, because the node group wasn't configured with a launch template to attach it.
+Added an inbound rule on the RDS SG for the actual attached SG to unblock immediately; retested — connection succeeded.
+
+Root Cause:
+EKS managed node groups default to an auto-created cluster security group unless a launch template explicitly attaches a custom one. Terraform declared a custom node SG with the correct RDS access rule, but nothing was using it — so the rule was correct but pointed at an SG nothing depended on.
+Resolution:
+Short-term: added the RDS inbound rule for the SG actually attached to nodes. Long-term: added an aws_launch_template to the node group, explicitly setting vpc_security_group_ids to the Terraform-managed node SG, so future SG changes take effect.
+
+Learning:
+
+A "hangs then times out" connection (not "refused") = network/SG-layer drop, not an app or auth problem — narrows the search fast.
+A correct-looking SG rule doesn't guarantee it's attached to the right resource — always verify via describe-instances, don't just trust the Terraform definition.
+EKS managed node groups silently use their own auto-created SG unless a launch template overrides it — a common gotcha when adding custom node SGs after initial cluster setup.

@@ -1,0 +1,40 @@
+aws eks update-kubeconfig   --region us-east-1   --name dev-ecommerce-cluster
+
+--- 
+
+kubectl edit configmap aws-auth -n kube-system
+
+
+apiVersion: v1
+data:
+  mapRoles: |
+    - rolearn: arn:aws:iam::<account-id>:role/<node-group-role-name>
+      username: system:node:{{EC2PrivateDNSName}}
+      groups:
+        - system:bootstrappers
+        - system:nodes
+    - rolearn: arn:aws:iam::169976490560:role/github-actions-ecommerce-role
+      username: github-actions
+      groups:
+        - system:masters
+kind: ConfigMap
+metadata:
+  name: aws-auth
+  namespace: kube-system
+
+---
+
+kubectl run -it --rm debug --image=postgres:15 --restart=Never -n ecommerce-dev --   psql "postgresql://ecommerce:postgree@ecommerce-dev-db.cgr0gow4mmxo.us-east-1.rds.amazonaws.com:5432/postgres"
+
+--------
+
+kubectl delete sa pre-install-kibana-kibana -n observability --ignore-not-found
+kubectl delete role pre-install-kibana-kibana -n observability --ignore-not-found
+kubectl delete rolebinding pre-install-kibana-kibana -n observability --ignore-not-found
+kubectl delete configmap kibana-kibana-helm-scripts -n observability --ignore-not-found
+kubectl delete job pre-install-kibana-kibana -n observability --ignore-not-found
+kubectl delete pod -l job-name=pre-install-kibana-kibana -n observability --ignore-not-found
+
+------
+
+
