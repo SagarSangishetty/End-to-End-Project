@@ -1,0 +1,100 @@
+Elasticsearch + Fluent Bit + Kibana (EFK)
+Helm
+Components Installed
+Elasticsearch
+Kibana
+Fluent Bit
+Elasticsearch
+Deployed as a StatefulSet using the Helm chart.
+Enabled TLS and authentication by default.
+Created a persistent volume for data storage.
+Exposed through the elasticsearch-master service.
+Kibana
+
+Configured with the Elasticsearch HTTPS endpoint.
+
+https://elasticsearch-master:9200
+
+Using HTTP caused Kibana installation/startup failures because Elasticsearch accepts only HTTPS connections.
+
+Fluent Bit
+
+Deployed as a DaemonSet so one Fluent Bit pod runs on every Kubernetes node.
+
+Purpose:
+
+Read container logs from every node.
+Enrich logs with Kubernetes metadata.
+Forward logs to Elasticsearch.
+Fluent Bit Output Configuration
+
+Configured Elasticsearch output with:
+
+Host = elasticsearch-master
+Port = 9200
+TLS = On
+TLS.Verify = Off
+Elasticsearch username
+Elasticsearch password
+Logstash format enabled
+
+This allows Fluent Bit to securely push logs into Elasticsearch.
+
+Kubernetes / Fluent Bit Configuration
+Kubernetes Filter
+
+Used the Kubernetes filter to enrich logs with metadata like:
+
+Namespace
+Pod Name
+Container Name
+Labels
+Annotations
+
+Final configuration:
+
+[FILTER]
+    Name kubernetes
+    Match kube.*
+    Merge_Log Off
+    Keep_Log On
+    K8S-Logging.Parser On
+    K8S-Logging.Exclude On
+    Labels Off
+    Annotations Off
+Why Merge_Log Off?
+
+Initially we used:
+
+Merge_Log On
+
+Fluent Bit parsed application JSON logs and merged their fields into the Elasticsearch document.
+
+This caused mapping conflicts because some application fields (like message) had different data types than documents already indexed.
+
+Changing to
+
+Merge_Log Off
+
+stores the application log as a raw string in the log field instead of expanding it into individual fields.
+
+This avoided Elasticsearch mapping conflicts without changing application code.
+
+Why Labels Off?
+
+Initially Kubernetes labels were also indexed.
+
+Application labels conflicted with existing Elasticsearch mappings, causing errors like:
+
+mapper_parsing_exception
+object mapping for
+kubernetes.labels.app
+
+Disabling
+
+Labels Off
+Annotations Off
+
+prevented Kubernetes labels from being indexed, eliminating the mapping conflict.
+
+Note: Kubernetes labels are no longer searchable in Kibana.

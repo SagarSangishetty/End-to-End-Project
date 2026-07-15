@@ -1,0 +1,78 @@
+Prometheus & Grafana
+Helm
+Components Installed
+kube-prometheus-stack
+Prometheus
+Grafana
+Alertmanager
+Prometheus Operator
+Node Exporter
+kube-state-metrics
+Additional Helm Components
+External Secrets Operator
+ExternalSecret (Grafana credentials)
+
+Purpose:
+
+Stored Grafana username and password in AWS Secrets Manager.
+ExternalSecret synced the secret from AWS Secrets Manager to a Kubernetes Secret.
+Grafana consumed the Kubernetes Secret for admin credentials.
+Kubernetes
+ServiceMonitor
+
+Created one ServiceMonitor for each service:
+
+frontend
+user-service
+product-service
+order-service
+
+Purpose:
+
+Prometheus discovers application metrics by scraping each service's /metrics endpoint.
+PrometheusRule
+
+Created alert rules for every service.
+
+Examples:
+
+Service Down
+High CPU Usage
+
+AlertManager automatically discovers these rules through the Prometheus Operator.
+
+Issue Faced
+Metrics were not getting scraped.
+
+Root Cause
+
+The ServiceMonitor referenced a named service port, but the Service YAML exposed only the port number.
+
+ServiceMonitor:
+
+port: http
+
+Service:
+
+ports:
+- port: 3000
+
+No port name was defined.
+
+Since Prometheus resolves the endpoint using the port name, it could not discover the metrics endpoint, resulting in the target remaining DOWN.
+
+Fix
+
+Added a name to the Service port in all application services.
+
+Example:
+
+ports:
+- name: http
+  port: 3000
+  targetPort: 3000
+
+Verified in:
+
+Prometheus → Status → Targets (Targets became UP)
+Grafana dashboards started displaying application metrics.

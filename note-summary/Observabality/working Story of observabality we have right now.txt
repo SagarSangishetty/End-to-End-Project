@@ -1,0 +1,20 @@
+The story, in plain terms
+What it does: every single request gets a unique ID the moment it hits the frontend. That ID travels with the request through every service it touches, and every service logs that same ID whenever it does anything. So even though your request bounces between 3-4 different pods, potentially on different nodes, you can pull one ID and see its entire journey across every service, in order, just by searching your logs.
+How it works, step by step:
+
+Frontend generates or reuses the ID. When a request arrives at frontend, middleware checks if it already has an X-Request-ID header (e.g., from a load balancer or an external caller). If not, it generates a fresh UUID with uuidv4(). Either way, this ID gets attached to the request object for the rest of its lifecycle in that service.
+Frontend forwards it downstream. Any time frontend calls a backend service — say, order-service to place an order — it explicitly attaches that same ID as an X-Request-ID header on the outgoing HTTP call. This is a manual, deliberate propagation — not automatic, the code does it on purpose on every backend call.
+Each backend service reads and re-uses it. user-service, product-service, order-service all read X-Request-ID from the incoming request header in their own middleware. They log it on every request they handle, and — if they call each other internally — would pass it along the same way.
+Every log line includes it. Because all services use structured JSON logging, the request_id field is a real, indexed, searchable field — not buried in unstructured text. Fluent Bit ships these logs to Elasticsearch, and in Kibana you can search request_id: "<the-id>" and instantly see the whole request's path across every service, in the right order, with timestamps.
+
+Interview framing, one sentence: "I implemented request correlation using a propagated X-Request-ID header — generated at the edge, passed to every downstream call, and logged as a structured field at every hop — so I can trace a single request's full path across services just by searching logs, which is critical for debugging distributed failures."
+That's a complete, honest, real story. It doesn't claim trace-level correlation (which you correctly chose to skip for now) — it's specifically a logging correlation story, which is accurate to what you built.
+Test it right now, live
+bashcurl -X POST http://<your-alb-url>/order \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "X-Request-ID: interview-demo-001" \
+  -d "user_id=1&product_id=1&quantity=1"
+Then in Kibana → Discover, search:
+request_id: "interview-demo-001"
+You should see log lines from frontend and order-service (and possibly product-service/user-service if order-service's route calls them) — all carrying the same ID, showing the request's full path.
+Run that and paste what you see in Kibana — once confirmed, this piece is genuinely closed.

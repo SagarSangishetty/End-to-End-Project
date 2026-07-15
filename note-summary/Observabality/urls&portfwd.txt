@@ -1,15 +1,29 @@
 📊 Grafana
-kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
+kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80 &
 
 Open: http://localhost:3000
 
 📈 Prometheus
-kubectl port-forward -n observability svc/kube-prometheus-stack-prometheus 9090:9090
+kubectl port-forward -n observability svc/kube-prometheus-stack-prometheus 9090:9090 &
 
 Open: http://localhost:9090
 
 🚨 Alertmanager
-kubectl port-forward -n observability svc/kube-prometheus-stack-alertmanager 9093:9093
+kubectl port-forward -n observability svc/kube-prometheus-stack-alertmanager 9093:9093 &
+
+Open: http://localhost:9093
+
+
+Test your /metrics endpoint
+
+Before creating a ServiceMonitor, ensure the service exposes metrics.
+
+For example, port-forward your product service:
+
+kubectl port-forward -n ecommerce-dev svc/order-service 8003:8003
+
+------------------------------------------------------------------------------------------
+
 
 Open:http://localhost:9093
 
@@ -24,6 +38,8 @@ Password: (Retrieve it with the command below if you don't have it handy.)
 kubectl get secret elasticsearch-master-credentials \
   -n observability \
   -o jsonpath="{.data.password}" | base64 -d && echo
+
+---------------------------------------------------------------------------
 
 🔍 Jaeger
 kubectl port-forward -n observability svc/jaeger 16686:16686

@@ -1,0 +1,34 @@
+Metrics were not getting scraped.
+
+Root Cause
+
+The ServiceMonitor referenced a named service port, but the Service YAML exposed only the port number.
+
+ServiceMonitor:
+
+port: http
+
+Service:
+
+ports:
+- port: 3000
+
+No port name was defined.
+
+Since Prometheus resolves the endpoint using the port name, it could not discover the metrics endpoint, resulting in the target remaining DOWN.
+
+Fix
+
+Added a name to the Service port in all application services.
+
+Example:
+
+ports:
+- name: http
+  port: 3000
+  targetPort: 3000
+
+Verified in:
+
+Prometheus → Status → Targets (Targets became UP)
+Grafana dashboards started displaying application metrics.

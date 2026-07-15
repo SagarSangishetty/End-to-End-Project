@@ -1,0 +1,186 @@
+Fluent Bit → Elasticsearch → Kibana Troubleshooting
+Problem
+Fluent Bit was running.
+Elasticsearch was healthy.
+Kibana index pattern existed.
+Only infrastructure logs were visible.
+Application logs from ecommerce-dev were missing.
+Step 1 - Verify Fluent Bit is watching application logs
+kubectl logs -n observability <fluent-bit-pod> | grep product-service
+
+Output:
+
+inotify_fs_add():
+/var/log/containers/product-service....
+
+Conclusion
+
+Fluent Bit was reading the application log files.
+
+Step 2 - Verify application generates logs
+kubectl logs deployment/frontend -n ecommerce-dev
+kubectl logs deployment/product-service -n ecommerce-dev
+
+Observed
+
+Frontend:
+
+{
+  "level":"info",
+  "message":{...}
+}
+
+Backend services:
+
+INFO: GET /health
+
+Conclusion
+
+Applications were writing logs correctly.
+
+Step 3 - Verify logs are reaching Fluent Bit
+
+Enabled tracing.
+
+Trace_Error On
+Trace_Output On
+
+Observed:
+
+{
+  "service":"product-service",
+  "kubernetes":{...}
+}
+
+Conclusion
+
+Fluent Bit successfully collected application logs.
+
+Step 4 - Check Elasticsearch
+
+Search application namespace.
+
+curl -k -u elastic:<password> \
+https://localhost:9200/ecommerce-lite*/_search
+
+Result
+
+0 hits
+
+Infrastructure logs existed.
+
+Application logs did not.
+
+Step 5 - Enable Fluent Bit error tracing
+
+Observed
+
+mapper_parsing_exception
+
+Important errors
+
+failed to parse field [message]
+
+and
+
+object mapping for
+kubernetes.labels.app
+
+Conclusion
+
+Elasticsearch rejected application logs.
+
+Step 6 - Inspect Elasticsearch mapping
+curl -k -u elastic:<password> \
+https://localhost:9200/ecommerce-lite-*/_mapping?pretty
+
+Found
+
+message -> text
+
+but frontend sends
+
+message : {
+   event: ...
+}
+
+Also
+
+kubernetes.labels.app
+
+was mapped as an object while application labels sent it as a string.
+
+Root Cause
+
+Dynamic mapping conflict.
+
+Earlier indexed documents created one mapping.
+
+Application logs had a different schema.
+
+Elasticsearch does not allow field type changes.
+
+Example
+
+Existing mapping
+
+message -> text
+
+Incoming document
+
+message -> object
+
+Rejected.
+
+Resolution (Simple)
+
+Instead of parsing JSON logs into fields:
+
+Merge_Log On
+Keep_Log Off
+
+Changed to
+
+[FILTER]
+    Name kubernetes
+    Match kube.*
+    Merge_Log Off
+    Keep_Log On
+    Labels Off
+    Annotations Off
+
+Deleted old index
+
+curl -k -u elastic:<password> \
+-X DELETE \
+https://localhost:9200/ecommerce-lite-2026.07.15
+
+Restarted Fluent Bit
+
+kubectl rollout restart daemonset fluent-bit -n observability
+
+Generated application traffic.
+
+Verification
+
+Search namespace
+
+kubernetes.namespace_name : ecommerce-dev
+
+Result
+
+✅ Application logs visible in Kibana.
+
+Logs stored in
+
+log
+
+field as raw JSON string.
+
+Lessons Learned
+Fluent Bit collecting logs does not mean Elasticsearch is accepting them.
+Always inspect Fluent Bit logs when documents are missing.
+mapper_parsing_exception almost always points to an Elasticsearch mapping conflict.
+Dynamic mappings are convenient but can cause conflicts when different services produce different field types.
+For production, use Index Templates with predefined mappings instead of relying on dynamic mapping.
+For a lab/demo environment, disabling Merge_Log is a simple and effective workaround.

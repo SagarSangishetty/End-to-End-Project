@@ -1,0 +1,146 @@
+=========================================
+KIBANA HELM INSTALL ISSUE
+=========================================
+
+Issue:
+- Terraform Helm release for Kibana failed repeatedly.
+- Error showed pre-install hook resources already existed.
+
+Error:
+
+serviceaccounts "pre-install-kibana-kibana" already exists
+
+roles "pre-install-kibana-kibana" already exists
+
+configmaps "kibana-kibana-helm-scripts" already exists
+
+Initially this looked like a Kubernetes cleanup issue but it was only a secondary error.
+
+--------------------------------------------------
+
+Root Cause
+
+Checked pre-install pod logs:
+
+kubectl logs <pre-install-pod> -n observability
+
+Found actual error:
+
+Creating a new Elasticsearch token for Kibana
+
+TypeError [ERR_INVALID_PROTOCOL]:
+Protocol "http:" not supported.
+Expected "https:"
+
+Reason:
+Kibana Helm chart pre-install hook communicates with Elasticsearch using HTTPS.
+
+Terraform values were configured as:
+
+elasticsearchHosts = "http://elasticsearch-master:9200"
+
+Changing it to HTTP caused the pre-install token creation job to fail.
+
+--------------------------------------------------
+
+Fix
+
+Updated Kibana Helm values:
+
+Before
+
+elasticsearchHosts = "http://elasticsearch-master:9200"
+
+After
+
+elasticsearchHosts = "https://elasticsearch-master:9200"
+
+Terraform apply completed successfully.
+
+--------------------------------------------------
+
+Verification
+
+Checked Kibana pod
+
+kubectl get pods -n observability
+
+Result
+
+kibana-kibana
+Running
+
+Checked logs
+
+Kibana is now available
+
+Verified service
+
+kubectl get svc -n observability
+
+Verified UI
+
+kubectl port-forward svc/kibana-kibana 5601:5601 -n observability
+
+Opened
+
+http://localhost:5601
+
+--------------------------------------------------
+
+Elasticsearch Verification
+
+Checked protocol
+
+curl -k https://localhost:9200
+
+Returned
+
+401 Unauthorized
+
+Meaning
+
+HTTPS enabled
+Authentication enabled
+
+HTTP test
+
+curl http://localhost:9200
+
+Returned
+
+Empty reply from server
+
+Conclusion
+
+Elasticsearch is running with HTTPS and security enabled despite custom xpack settings.
+
+--------------------------------------------------
+
+Ingress Issue
+
+Problem
+
+POST /products returned
+
+Cannot POST /products
+
+Reason
+
+Ingress only routed
+
+/
+
+to frontend service.
+
+API requests were also reaching frontend.
+
+Solution
+
+Added separate ingress paths
+
+/products -> product-service
+/users -> user-service
+/orders -> order-service
+
+--------------------------------------------------

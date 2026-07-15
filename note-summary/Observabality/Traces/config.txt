@@ -1,0 +1,92 @@
+Jaeger + OpenTelemetry
+Helm
+Components Installed
+Jaeger (All-in-One)
+OpenTelemetry Collector
+
+Jaeger All-in-One includes:
+
+Jaeger Collector
+Jaeger Query
+Jaeger UI
+Jaeger Storage
+OpenTelemetry Collector
+
+Acts as the middle layer between the application and Jaeger.
+
+Flow:
+
+Application
+      │
+      ▼
+OTEL Collector
+      │
+      ▼
+Jaeger
+Important Configuration
+fullnameOverride
+fullnameOverride: otel-collector
+
+This is important because the application sends traces to:
+
+otel-collector:4317
+
+The Kubernetes Service name must match the endpoint configured in the application.
+
+Otherwise the application cannot send traces.
+
+OTEL Collector Exporter
+
+Configured the collector to export traces to Jaeger.
+
+exporters = {
+  "otlp/jaeger" = {
+    endpoint = "jaeger:4317"
+    tls = {
+      insecure = true
+    }
+  }
+}
+
+Meaning:
+
+OTEL Collector
+      │
+      ▼
+Jaeger Collector (4317)
+Application Configuration
+
+Application configured with
+
+OTEL_EXPORTER_OTLP_ENDPOINT=otel-collector:4317
+
+Application exports traces to the OTEL Collector instead of directly to Jaeger.
+
+Verification
+Verify OTEL Collector
+kubectl get pods -n observability | grep otel
+
+Running ✅
+
+Verify Jaeger
+kubectl get pods -n observability | grep jaeger
+
+Running ✅
+
+Access UI
+kubectl port-forward svc/jaeger -n observability 16686:16686
+
+Open
+
+http://localhost:16686
+Generate Traffic
+
+Access the application and generate requests.
+
+Observed services in Jaeger:
+
+user-service
+product-service
+order-service
+
+Verified traces were successfully captured.
